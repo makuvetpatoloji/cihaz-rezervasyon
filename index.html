@@ -190,6 +190,31 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 .tl .past,.btl .past{position:absolute;top:0;bottom:0;left:0;background:var(--past);opacity:.9}
 .btl .sel{top:0;bottom:0;border-radius:6px;background:transparent;border:3px solid var(--ink);box-shadow:inset 0 0 0 1.5px var(--surface);display:block}
 .dot{flex:none;width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 1.5px var(--surface)}
+.title-l{display:flex;align-items:center;gap:10px;min-width:0}
+.backbtn{flex:none;width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--ink)}
+.backbtn:hover{border-color:var(--hema)}
+.backbtn svg{width:20px;height:20px}
+.hero{display:flex;align-items:center;gap:16px;padding:16px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.logo{flex:none;width:88px;height:88px;border-radius:50%;object-fit:cover;background:#FFFFFF}
+.hero-text{display:grid;gap:3px;min-width:0}
+.hero-text b{font:700 18px/1.25 var(--f-display);text-wrap:balance}
+.hero-text span{font-size:14px;color:var(--muted)}
+.lead{margin:4px 0 0;font-size:15px;color:var(--muted)}
+.cards{display:grid;gap:12px}
+.seccard{display:grid;grid-template-columns:88px minmax(0,1fr) 20px;align-items:center;gap:14px;width:100%;padding:12px 14px 12px 12px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);text-align:left}
+.seccard:hover{border-color:var(--hema)}
+.seccard img{display:block;width:88px;height:88px;border-radius:12px;object-fit:cover;background:var(--bg-2)}
+.sc-text{display:grid;gap:4px;min-width:0}
+.sc-text b{font:800 20px/1.15 var(--f-display);overflow-wrap:break-word}
+.sc-sub{font-size:14px;color:var(--muted)}
+.sc-week{font:500 12px var(--f-mono);color:var(--hema);font-variant-numeric:tabular-nums}
+.seccard > svg{width:20px;height:20px;color:var(--muted)}
+@media (min-width:640px){
+  .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .seccard{grid-template-columns:1fr;align-items:start;padding:12px}
+  .seccard img{width:100%;height:auto;aspect-ratio:1/1}
+  .seccard > svg{display:none}
+}
 .axis{position:relative;height:15px;font:500 10.5px var(--f-mono);color:var(--muted)}
 .axis span{position:absolute;top:0;transform:translateX(-50%)}
 .axis span:first-child{transform:none}
@@ -252,12 +277,15 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 <body>
 <header class="top">
   <div class="top-in">
-    <p class="eyebrow">Burdur MAKÜ · Veteriner Fakültesi · Patoloji Anabilim Dalı</p>
+    <p class="eyebrow" id="eyebrow">Burdur MAKÜ · Veteriner Fakültesi · Patoloji Anabilim Dalı</p>
     <div class="title-row">
-      <h1>Cihaz Rezervasyonu</h1>
+      <div class="title-l">
+        <button id="homeBtn" class="backbtn" type="button" aria-label="Ana sayfaya dön" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <h1 id="pageTitle">Cihaz Rezervasyonu</h1>
+      </div>
       <button id="status" class="status" type="button" title="Şimdi yenile">Yükleniyor…</button>
     </div>
-    <div class="tabs" role="tablist">
+    <div class="tabs" id="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-takvim" aria-selected="true" aria-controls="view-takvim">Takvim</button>
       <button class="tab" role="tab" id="tab-kayitlar" aria-selected="false" aria-controls="view-kayitlar">Kayıtlar</button>
     </div>
@@ -266,13 +294,25 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 </header>
 
 <main class="wrap">
-  <section id="view-takvim" class="view" role="tabpanel" aria-labelledby="tab-takvim">
+  <section id="view-home" class="view">
     <p id="movedNote" class="notice" hidden></p>
+    <div class="hero">
+      <img id="makuLogo" class="logo" alt="Burdur Mehmet Akif Ersoy Üniversitesi Veteriner Fakültesi logosu" width="88" height="88">
+      <div class="hero-text">
+        <b>Burdur Mehmet Akif Ersoy Üniversitesi</b>
+        <span>Veteriner Fakültesi · Patoloji Anabilim Dalı</span>
+      </div>
+    </div>
+    <p class="lead">Rezervasyon yapmak istediğiniz bölümü seçin.</p>
+    <nav id="homeCards" class="cards" aria-label="Bölümler"></nav>
     <div id="installBar" class="install" hidden>
       <div class="ib-text"><b id="installTitle">Ana ekranınıza ekleyin</b><span>Uygulama gibi tek dokunuşla açın.</span></div>
       <button id="installHow" class="btn primary sm" type="button">Nasıl?</button>
       <button id="installClose" class="ib-x" type="button" aria-label="Bu bilgiyi gizle">×</button>
     </div>
+  </section>
+
+  <section id="view-takvim" class="view" role="tabpanel" aria-labelledby="tab-takvim" hidden>
     <div class="weekbar">
       <button id="prevW" class="iconbtn" type="button" aria-label="Önceki hafta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="weekinfo">
@@ -329,6 +369,17 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   function cfgSig(c) { return JSON.stringify([c.cihazlar, c.basla, c.bitis, c.adim, c.lamEnFazla]); }
   var DEVICES = CFG.cihazlar;
   var DEV = {}; DEVICES.forEach(function (d) { DEV[d.id] = d; });
+  // home page sections; each opens the calendar for its own devices
+  var IMG_BASE = GAS ? "https://makuvetpatoloji.github.io/cihaz-rezervasyon/" : "";
+  var SECTIONS = [
+    { id: "mikrotom", ad: "Mikrotom", alt: "Eski ve yeni mikrotom", img: "bolum-mikrotom.jpg", devices: ["eski", "yeni"] },
+    { id: "ihk", ad: "İmmünohistokimya", alt: "İHK chamber", img: "bolum-ihk.jpg", devices: ["chamber"] },
+    { id: "ototeknikon", ad: "Ototeknikon", alt: "Doku takibi", img: "bolum-ototeknikon.jpg", devices: ["ototeknikon"] }
+  ].map(function (sc) { sc.devices = sc.devices.filter(function (id) { return !!DEV[id]; }); return sc; })
+   .filter(function (sc) { return sc.devices.length; });
+  var SEC = {}; SECTIONS.forEach(function (sc) { SEC[sc.id] = sc; });
+  function secDevices() { var sc = SEC[S.section]; return sc ? DEVICES.filter(function (d) { return sc.devices.indexOf(d.id) >= 0; }) : DEVICES; }
+  function inSec(devId) { var sc = SEC[S.section]; return !sc || sc.devices.indexOf(devId) >= 0; }
   var LAM_MAX = Number(CFG.lamEnFazla) || 200;
   var GUN = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
   var GUN_K = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
@@ -390,7 +441,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   var S = {
     today: t0, nowMin: 0, nowAt: Date.now(), serverTime: false, moved: false,
     week: defWeek(t0), items: [], loadedWeek: null, loading: true, err: false, lastSync: "",
-    log: null, logErr: false, view: "takvim", filter: "tum", calF: loadJSON(CALF_KEY, "tum"),
+    log: null, logErr: false, view: "home", section: null, filter: "tum", calF: "tum",
     mine: loadJSON(MINE_KEY, {}), sheet: null, busy: false
   };
   if (!S.mine || typeof S.mine !== "object") S.mine = {};
@@ -574,7 +625,10 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   // ---------- calendar ----------
   function buildCalFilters() {
     var box = $("calFilters"); box.replaceChildren();
-    var opts = [["tum", "Tüm cihazlar"]].concat(DEVICES.map(function (d) { return [d.id, d.ad]; }));
+    var devs = secDevices();
+    if (S.calF !== "tum" && !devs.some(function (d) { return d.id === S.calF; })) S.calF = "tum";
+    box.hidden = devs.length < 2;
+    var opts = [["tum", S.section ? "Hepsi" : "Tüm cihazlar"]].concat(devs.map(function (d) { return [d.id, d.ad]; }));
     opts.forEach(function (o) {
       var c = el("button", "chip", o[1]); c.type = "button";
       c.setAttribute("aria-pressed", String(S.calF === o[0]));
@@ -589,7 +643,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     $("weekRel").textContent = upTR(rel);
     $("weekLabel").textContent = rangeLabel(days[0], days[4]);
     var ready = S.loadedWeek === S.week;
-    var n = ready ? S.items.filter(function (it) { return it.status === "aktif" && it.date >= days[0] && it.date <= days[4] && (S.calF === "tum" || it.device === S.calF); }).length : 0;
+    var n = ready ? S.items.filter(function (it) { return it.status === "aktif" && it.date >= days[0] && it.date <= days[4] && inSec(it.device) && (S.calF === "tum" || it.device === S.calF); }).length : 0;
     $("weekSub").textContent = ready ? (n ? n + " rezervasyon" : "Bu hafta henüz rezervasyon yok") : (S.err ? "Rezervasyonlar yüklenemedi" : "Rezervasyonlar yükleniyor…");
     $("thisW").hidden = S.week === defWeek(S.today);
     var frag = document.createDocumentFragment();
@@ -604,7 +658,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     dc.append(el("span", "dnum", String(d.getUTCDate())), el("span", "dname", GUN[d.getUTCDay()]), el("span", "dmon", upTR(AY_K[d.getUTCMonth()])));
     if (isToday) dc.append(el("span", "badge", "BUGÜN"));
     var devs = el("div", "devs");
-    DEVICES.forEach(function (dev) { if (S.calF === "tum" || S.calF === dev.id) devs.append(devBlock(ds, dev, past, isToday, ready)); });
+    secDevices().forEach(function (dev) { if (S.calF === "tum" || S.calF === dev.id) devs.append(devBlock(ds, dev, past, isToday, ready)); });
     row.append(dc, devs);
     return row;
   }
@@ -838,7 +892,8 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   // ---------- log ----------
   function buildLogFilters() {
     var box = $("filters"); box.replaceChildren();
-    var opts = [["tum", "Tümü"]].concat(DEVICES.map(function (d) { return [d.id, d.ad]; }), [["benim", "Bu telefondaki kayıtlarım"]]);
+    var devs = secDevices();
+    var opts = [["tum", "Tümü"]].concat(devs.length > 1 ? devs.map(function (d) { return [d.id, d.ad]; }) : [], [["benim", "Bu telefondaki kayıtlarım"]]);
     opts.forEach(function (o) {
       var c = el("button", "chip", o[1]); c.type = "button";
       c.setAttribute("aria-pressed", String(S.filter === o[0]));
@@ -851,7 +906,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     if (S.logErr) { stats.textContent = ""; log.replaceChildren(el("li", "empty", "Kayıtlar yüklenemedi. Üstteki yenile düğmesine dokunun.")); return; }
     if (!S.log) { stats.textContent = "Kayıtlar yükleniyor…"; log.replaceChildren(el("li", "empty", "Yükleniyor…")); return; }
     var f = S.filter;
-    var list = (S.log.kayitlar || []).filter(function (it) { return f === "tum" || (f === "benim" ? isMine(it) : it.device === f); });
+    var list = (S.log.kayitlar || []).filter(function (it) { return inSec(it.device) && (f === "tum" || (f === "benim" ? isMine(it) : it.device === f)); });
     var ip = list.filter(function (i) { return i.status === "iptal"; }).length;
     var more = (S.log.toplam || 0) > (S.log.kayitlar || []).length ? " · en yeni " + S.log.kayitlar.length + " kayıt gösteriliyor" : "";
     stats.textContent = list.length + " kayıt · " + (list.length - ip) + " geçerli · " + ip + " iptal" + more;
@@ -886,7 +941,27 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     });
     log.replaceChildren(frag);
   }
-  function render() { if (S.view === "takvim") renderWeek(); else renderLog(); }
+  function renderHome() {
+    var box = $("homeCards"), thisWeek = S.loadedWeek === defWeek(S.today), w0 = defWeek(S.today), w4 = addD(w0, 4);
+    var CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
+    box.replaceChildren();
+    SECTIONS.forEach(function (sc) {
+      var card = el("button", "seccard"); card.type = "button";
+      var img = el("img"); img.src = IMG_BASE + sc.img; img.alt = ""; img.width = 88; img.height = 88; img.loading = "lazy";
+      var tx = el("span", "sc-text");
+      tx.append(el("b", null, sc.ad), el("span", "sc-sub", sc.alt));
+      if (thisWeek) {
+        var n = S.items.filter(function (it) { return it.status === "aktif" && sc.devices.indexOf(it.device) >= 0 && it.date >= w0 && it.date <= w4; }).length;
+        tx.append(el("span", "sc-week", n ? "Bu hafta " + n + " rezervasyon" : "Bu hafta rezervasyon yok"));
+      }
+      card.append(img, tx);
+      var ch = el("span"); ch.innerHTML = CHEV; card.append(ch.firstChild);
+      card.setAttribute("aria-label", sc.ad + " rezervasyonları");
+      card.addEventListener("click", function () { openSection(sc.id); });
+      box.append(card);
+    });
+  }
+  function render() { if (S.view === "home") renderHome(); else if (S.view === "takvim") renderWeek(); else renderLog(); }
 
   // ---------- sheet ----------
   var lastFocus = null;
@@ -1393,6 +1468,12 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   $("status").addEventListener("click", function () { loadWeek(true); if (S.view === "kayitlar") loadLog(); });
   function setView(v) {
     S.view = v;
+    var home = v === "home";
+    $("view-home").hidden = !home;
+    $("tabs").hidden = home;
+    $("homeBtn").hidden = home;
+    $("eyebrow").hidden = home;
+    $("pageTitle").textContent = home || !SEC[S.section] ? "Cihaz Rezervasyonu" : SEC[S.section].ad;
     $("tab-takvim").setAttribute("aria-selected", String(v === "takvim"));
     $("tab-kayitlar").setAttribute("aria-selected", String(v === "kayitlar"));
     $("view-takvim").hidden = v !== "takvim";
@@ -1400,13 +1481,34 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     render();
     if (v === "kayitlar") loadLog();
   }
+  function openSection(id, push) {
+    if (!SEC[id]) return goHome(false);
+    S.section = id; S.calF = "tum"; S.filter = "tum";
+    buildCalFilters(); buildLogFilters();
+    if (push !== false) { try { history.pushState({ s: id, fromHome: true }, "", "#" + id); } catch (e) {} }
+    setView("takvim");
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+  function goHome(push) {
+    S.section = null;
+    if (push !== false) { try { history.pushState({ s: null }, "", location.pathname + location.search); } catch (e) {} }
+    setView("home");
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+  function route() { var h = (location.hash || "").replace(/^#/, ""); if (SEC[h]) openSection(h, false); else goHome(false); }
+  window.addEventListener("popstate", route);
+  $("homeBtn").addEventListener("click", function () {
+    if (history.state && history.state.fromHome) { try { history.back(); return; } catch (e) {} }
+    goHome();
+  });
   $("tab-takvim").addEventListener("click", function () { setView("takvim"); });
   $("tab-kayitlar").addEventListener("click", function () { setView("kayitlar"); });
   document.addEventListener("visibilitychange", function () { if (!document.hidden && !S.busy) loadWeek(true); });
-  setInterval(function () { if (!document.hidden && !S.busy && S.view === "takvim" && $("sheet").hidden) loadWeek(true); }, 30000);
+  setInterval(function () { if (!document.hidden && !S.busy && S.view !== "kayitlar" && $("sheet").hidden) loadWeek(true); }, 30000);
 
-  buildCalFilters(); buildLogFilters();
+  $("makuLogo").src = IMG_BASE + "logo-maku.png";
   setStatus();
+  route();
   loadWeek(false);
 })();
 </script>
