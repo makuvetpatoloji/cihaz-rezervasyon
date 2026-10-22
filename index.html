@@ -103,6 +103,17 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 .dtag.eski{background:var(--wax);border-color:var(--wax-2);color:var(--ink)}
 .dtag.yeni{background:transparent;border-color:var(--ink);color:var(--ink)}
 .dtag.chamber{background:var(--dab-soft);border-color:var(--dab);color:var(--dab)}
+.dtag.ototeknikon{background:var(--eosin-soft);border-color:var(--eosin);color:var(--eosin)}
+.tl-sp{flex:1}
+.tk{font-size:12px;font-weight:500;padding:1px 7px;border-radius:5px;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.slotbox{display:grid;gap:6px;padding:10px 12px;border-radius:12px;background:var(--bg-2)}
+.slotrow{display:flex;gap:6px 10px;align-items:baseline;flex-wrap:wrap;font-size:14px}
+.slotrow .st{color:var(--muted)}
+.pick{display:grid;gap:8px}
+.pick > b{font-size:13px;font-weight:600}
+.chip[disabled]{opacity:.45;cursor:not-allowed}
+.okline{margin:0;font-size:14px;padding:9px 12px;border-radius:10px;background:var(--hema-soft)}
+.warnline{margin:0;font-size:14px;padding:9px 12px;border-radius:10px;background:var(--dab-soft);color:var(--ink)}
 .tl{position:relative;flex:1;min-width:0;height:12px;border-radius:4px;background:var(--track);overflow:hidden}
 .tick{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
 .blk{position:absolute;top:0;bottom:0;background:var(--eosin)}
@@ -291,7 +302,15 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     cihazlar: [
       { id: "eski", ad: "Eski mikrotom", etiket: "ESKİ", overnight: false, lam: false },
       { id: "yeni", ad: "Yeni mikrotom", etiket: "YENİ", overnight: false, lam: false },
-      { id: "chamber", ad: "İHK chamber", etiket: "İHK", overnight: true, lam: true }
+      { id: "chamber", ad: "İHK chamber", etiket: "İHK", overnight: true, lam: true, kapasite: 180 },
+      { id: "ototeknikon", ad: "Ototeknikon", etiket: "OTO", tur: "seans", overnight: false, lam: false, onay: "Uzm. Biyolog Dilnur İleri'ye bilgi verildi",
+        takipler: [
+          { id: "gunluk", ad: "Günlük takip", grup: "Günlük takip", secenek: "Formaldehitli", saat: "17:00" },
+          { id: "gunluk-fs", ad: "Formaldehitsiz günlük takip", grup: "Günlük takip", secenek: "Formaldehitsiz", saat: "17:00" },
+          { id: "kisa", ad: "Kısa takip", grup: "Kısa takip", secenek: "Formaldehitli", saat: "09:00" },
+          { id: "kisa-fs", ad: "Formaldehitsiz kısa takip", grup: "Kısa takip", secenek: "Formaldehitsiz", saat: "09:00" },
+          { id: "dekalsifiye", ad: "Dekalsifiye sonrası takip", grup: "Dekalsifiye sonrası takip", saat: "17:00" }
+        ] }
     ], basla: "08:00", bitis: "18:00", adim: 30, lamEnFazla: 200
   };
   var CACHED = loadJSON(CFG_KEY, null);
@@ -482,6 +501,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       box.append(b);
     });
   }
+  function timeText(it) { return it.end ? it.start + "–" + it.end : it.start; }
   function pct(m) { return ((m - GB) / (GE - GB) * 100).toFixed(3) + "%"; }
   function ovBadge(it) {
     // only on the first night's part; the next-morning part shows as a normal booking
@@ -531,7 +551,8 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   function bookingLine(it, past) {
     var mine = isMine(it);
     var li = el("li", "bk " + (mine ? "mine" : "taken"));
-    li.append(el("span", "tm", it.start + "–" + it.end), el("span", "nm", it.name));
+    li.append(el("span", "tm", timeText(it)), el("span", "nm", it.name));
+    if (it.takip) li.append(el("span", "tk", it.takip));
     if (it.lam) li.append(el("span", "lam", it.lam + " lam"));
     var ob = ovBadge(it); if (ob) li.append(ob);
     if (mine) {
@@ -539,7 +560,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       var lastDate = it.pairDate && it.pairDate > it.date ? it.pairDate : it.date;
       if (lastDate >= S.today && !(past && !it.overnight)) {
         var cb = el("button", "cancel", "İptal et"); cb.type = "button";
-        cb.setAttribute("aria-label", it.start + "–" + it.end + " rezervasyonunu iptal et");
+        cb.setAttribute("aria-label", timeText(it) + " rezervasyonunu iptal et");
         cb.addEventListener("click", function () { openCancel(it); });
         li.append(cb);
       }
@@ -547,6 +568,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     return li;
   }
   function devBlock(ds, dev, past, isToday, ready) {
+    if (isSeans(dev)) return seansBlock(ds, dev, past, ready);
     var box = el("div", "dev");
     var top = el("div", "dev-top");
     var tag = el("span", "dtag " + dev.id, dev.etiket); tag.title = dev.ad;
@@ -586,6 +608,179 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     return box;
   }
 
+
+  // ---------- session devices (Ototeknikon): fixed run times, same protocol may share a run ----------
+  function isSeans(dev) { return !!dev && dev.tur === "seans"; }
+  function seansTimes(dev) {
+    var seen = {}, out = [];
+    (dev.takipler || []).forEach(function (t) { if (!seen[t.saat]) { seen[t.saat] = 1; out.push(t.saat); } });
+    return out.sort();
+  }
+  function slotInfo(ds, devId, saat) {
+    var list = S.items.filter(function (it) { return it.status === "aktif" && it.date === ds && it.device === devId && it.start === saat; });
+    return { list: list, takip: list.length ? list[0].takip : "", passed: ds < S.today || (ds === S.today && dk(saat) <= curMin()) };
+  }
+  function takipBlocked(ds, dev, t) {
+    var si = slotInfo(ds, dev.id, t.saat);
+    if (si.passed) return "Bugünün " + t.saat + " seansının saati geçti.";
+    if (si.takip && si.takip !== t.ad) return t.saat + " seansına " + si.takip + " alınmış; bu seansa yalnızca aynı takip türüyle katılabilirsiniz.";
+    return "";
+  }
+  function seansBlock(ds, dev, past, ready) {
+    var box = el("div", "dev");
+    var top = el("div", "dev-top");
+    var tag = el("span", "dtag " + dev.id, dev.etiket); tag.title = dev.ad;
+    top.append(tag, el("span", "tl-sp"));
+    box.append(top);
+    if (!ready) { box.append(el("p", "muted", S.err ? "—" : "Yükleniyor…")); return box; }
+    var times = seansTimes(dev), any = false, open = false, ul = el("ul", "bks");
+    times.forEach(function (saat) {
+      var si = slotInfo(ds, dev.id, saat);
+      if (!si.passed) open = true;
+      si.list.forEach(function (it) { any = true; ul.append(bookingLine(it, past)); });
+    });
+    if (!past && open) {
+      var add = el("button", "add"); add.type = "button";
+      add.innerHTML = PLUS; add.append(document.createTextNode("Rezerve et"));
+      add.setAttribute("aria-label", dev.ad + ", " + longDate(ds) + " için rezerve et");
+      add.addEventListener("click", function () { openSeans(ds, dev.id); });
+      top.append(add);
+    }
+    if (any) box.append(ul);
+    else box.setAttribute("aria-label", dev.ad + ": " + (past ? "kayıt yok" : "boş"));
+    return box;
+  }
+  function openSeans(ds, devId) {
+    S.sheet = { kind: "seans", ds: ds, dev: devId, grup: null, takip: null, onay: false };
+    openSheet(buildSeans);
+  }
+  var Q = {};
+  function buildSeans(p) {
+    var sh = S.sheet, dev = DEV[sh.dev];
+    Q = {};
+    head(p, dev.ad, longDate(sh.ds));
+    Q.slots = el("div", "slotbox"); p.append(Q.slots);
+
+    var g1 = el("div", "pick"); g1.append(el("b", null, "Takip türü (zorunlu)"));
+    Q.groups = el("div", "filters"); Q.groups.setAttribute("role", "group"); Q.groups.setAttribute("aria-label", "Takip türü");
+    g1.append(Q.groups); p.append(g1);
+    Q.subWrap = el("div", "pick"); Q.subWrap.append(el("b", null, "Formaldehit"));
+    Q.subs = el("div", "filters"); Q.subs.setAttribute("role", "group"); Q.subs.setAttribute("aria-label", "Formaldehitli ya da formaldehitsiz");
+    Q.subWrap.append(Q.subs); p.append(Q.subWrap);
+    Q.result = el("p", "okline"); p.append(Q.result);
+
+    Q.onayBox = el("label", "check"); Q.onayBox.htmlFor = "onayInput";
+    Q.onay = el("input"); Q.onay.type = "checkbox"; Q.onay.id = "onayInput";
+    var ct = el("span", "ct"); ct.append(el("b", null, dev.onay || "Bilgilendirme yapıldı"), el("span", null, "Rezervasyon için zorunlu."));
+    Q.onayBox.append(Q.onay, ct); p.append(Q.onayBox);
+    Q.onay.addEventListener("change", function () { sh.onay = Q.onay.checked; Q.onayBox.classList.toggle("on", sh.onay); if (!Q.err.hidden) showErr(Q.err, ""); });
+
+    var fn = el("div", "field"), ln = el("label", null, "Ad Soyad"); ln.htmlFor = "nameInput";
+    Q.name = el("input"); Q.name.id = "nameInput"; Q.name.type = "text"; Q.name.autocomplete = "name";
+    Q.name.setAttribute("autocapitalize", "words"); Q.name.spellcheck = false; Q.name.maxLength = 60;
+    Q.name.placeholder = "Örn. Ayşe Yılmaz"; Q.name.value = loadName(); Q.name.setAttribute("enterkeyhint", "done");
+    fn.append(ln, Q.name, el("p", "hint", "Yalnızca adınızı ve soyadınızı yazın. Rezervasyon herkese görünür."));
+    p.append(fn);
+    Q.err = errBox(); p.append(Q.err);
+    var act = el("div", "actions"), back = btn("ghost", "Vazgeç");
+    back.addEventListener("click", closeSheet);
+    Q.ok = btn("primary", "Rezerve et"); Q.ok.addEventListener("click", submitSeans);
+    Q.name.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submitSeans(); } });
+    act.append(back, Q.ok); p.append(act);
+    syncSeans();
+  }
+  function seansGroups(dev) {
+    var order = [], by = {};
+    (dev.takipler || []).forEach(function (t) { if (!by[t.grup]) { by[t.grup] = []; order.push(t.grup); } by[t.grup].push(t); });
+    return order.map(function (g) { return { ad: g, list: by[g] }; });
+  }
+  function syncSeans() {
+    var sh = S.sheet; if (!sh || sh.kind !== "seans") return;
+    var dev = DEV[sh.dev];
+    // run status
+    Q.slots.replaceChildren();
+    seansTimes(dev).forEach(function (saat) {
+      var si = slotInfo(sh.ds, dev.id, saat), row = el("div", "slotrow");
+      row.append(el("span", "tm", saat));
+      if (si.list.length) row.append(el("b", null, si.takip), el("span", "st", si.list.length + " kişi: " + si.list.map(function (x) { return x.name; }).join(", ")));
+      else row.append(el("span", "st", si.passed ? "saati geçti" : "boş"));
+      Q.slots.append(row);
+    });
+    // protocol groups
+    var groups = seansGroups(dev);
+    Q.groups.replaceChildren();
+    groups.forEach(function (g) {
+      var allBlocked = g.list.every(function (t) { return !!takipBlocked(sh.ds, dev, t); });
+      var c = el("button", "chip", g.ad); c.type = "button";
+      c.setAttribute("aria-pressed", String(sh.grup === g.ad));
+      if (allBlocked) { c.disabled = true; c.title = takipBlocked(sh.ds, dev, g.list[0]); }
+      c.addEventListener("click", function () {
+        sh.grup = g.ad;
+        var ok = g.list.filter(function (t) { return !takipBlocked(sh.ds, dev, t); });
+        sh.takip = g.list.length === 1 ? g.list[0].id : (ok.length === 1 ? ok[0].id : null);
+        syncSeans();
+      });
+      Q.groups.append(c);
+    });
+    var grp = groups.filter(function (g) { return g.ad === sh.grup; })[0];
+    var hasSub = !!grp && grp.list.length > 1;
+    Q.subWrap.hidden = !hasSub;
+    Q.subs.replaceChildren();
+    if (hasSub) grp.list.forEach(function (t) {
+      var c = el("button", "chip", t.secenek || t.ad); c.type = "button";
+      c.setAttribute("aria-pressed", String(sh.takip === t.id));
+      var why = takipBlocked(sh.ds, dev, t);
+      if (why) { c.disabled = true; c.title = why; }
+      c.addEventListener("click", function () { sh.takip = t.id; syncSeans(); });
+      Q.subs.append(c);
+    });
+    // what will be booked
+    var t = (dev.takipler || []).filter(function (x) { return x.id === sh.takip; })[0];
+    if (!sh.grup) { Q.result.className = "okline"; Q.result.textContent = "Takip türünü seçin; saat takip türüne göre belirlenir (kısa takipler 09:00, diğerleri 17:00)."; }
+    else if (!t) { Q.result.className = "okline"; Q.result.textContent = "Formaldehitli ya da formaldehitsiz seçin."; }
+    else {
+      var why2 = takipBlocked(sh.ds, dev, t), si = slotInfo(sh.ds, dev.id, t.saat);
+      if (why2) { Q.result.className = "warnline"; Q.result.textContent = why2; }
+      else { Q.result.className = "okline"; Q.result.replaceChildren(el("b", null, t.saat + " · " + t.ad), document.createTextNode(si.list.length ? " — bu seansa " + si.list.length + " kişi daha katıldı." : " — seansı siz başlatacaksınız.")); }
+    }
+    Q.onay.checked = sh.onay; Q.onayBox.classList.toggle("on", sh.onay);
+  }
+  function submitSeans() {
+    if (S.busy || !S.sheet || S.sheet.kind !== "seans") return;
+    var sh = S.sheet, dev = DEV[sh.dev];
+    var t = (dev.takipler || []).filter(function (x) { return x.id === sh.takip; })[0];
+    if (!sh.grup) return showErr(Q.err, "Takip türünü seçin.");
+    if (!t) return showErr(Q.err, "Formaldehitli ya da formaldehitsiz seçin.");
+    var why = takipBlocked(sh.ds, dev, t); if (why) return showErr(Q.err, why);
+    if (!sh.onay) return showErr(Q.err, "Rezervasyondan önce “" + (dev.onay || "bilgilendirme") + "” kutucuğunu işaretleyin.");
+    var raw = Q.name.value.replace(/\s+/g, " ").trim();
+    if (!raw) return showErr(Q.err, "Adınızı ve soyadınızı yazın.");
+    if (raw.length > 60) return showErr(Q.err, "Ad soyad en fazla 60 karakter olabilir.");
+    if (!/^[\p{L}'’\- ]+$/u.test(raw)) return showErr(Q.err, "Yalnızca harf kullanın; rakam ve simge kabul edilmiyor.");
+    if (!NAME_RE.test(raw)) return showErr(Q.err, "Adınızla birlikte soyadınızı da yazın.");
+    var name = titleCase(raw);
+    S.busy = true; Q.ok.disabled = true; Q.ok.textContent = "Kaydediliyor…"; showErr(Q.err, "");
+    api("rezerveEt", { date: sh.ds, device: sh.dev, name: name, takip: t.id, onay: true }).then(function (res) {
+      S.busy = false; Q.ok.disabled = false; Q.ok.textContent = "Rezerve et";
+      if (!res || !res.ok) {
+        showErr(Q.err, (res && res.mesaj) || "Rezervasyon yapılamadı.");
+        if (res && res.cakisma) loadWeek(true).then(syncSeans);
+        return;
+      }
+      var list = res.kayitlar || [res.kayit];
+      saveName(name);
+      remember(list, res.kod);
+      upsert(list); S.log = null;
+      render();
+      S.sheet = { kind: "done" };
+      swapSheet(function (pp) { buildDone(pp, res, list); });
+      loadWeek(true);
+    }).catch(function (e) {
+      S.busy = false; Q.ok.disabled = false; Q.ok.textContent = "Rezerve et";
+      showErr(Q.err, errText(e));
+    });
+  }
+
   // ---------- log ----------
   function buildLogFilters() {
     var box = $("filters"); box.replaceChildren();
@@ -613,13 +808,14 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       if (mk !== lastM) { lastM = mk; frag.append(el("li", "mhead", upTR(AY[d.getUTCMonth()] + " " + d.getUTCFullYear()))); }
       var st, lbl;
       if (it.status === "iptal") { st = "iptal"; lbl = "İptal edildi"; }
-      else if (it.date < S.today || (it.date === S.today && dk(it.end) <= curMin())) { st = "gecmis"; lbl = "Geçmiş"; }
+      else if (it.date < S.today || (it.date === S.today && dk(it.end || it.start) <= curMin())) { st = "gecmis"; lbl = "Geçmiş"; }
       else { st = "aktif"; lbl = "Aktif"; }
       var row = el("li", "row is-" + st);
       var rd = el("div", "rdate"); rd.append(el("b", null, String(d.getUTCDate())), el("span", null, GUN_K[d.getUTCDay()]));
       var rm = el("div", "rmain"), nm = el("div", "rname");
       var dv = devOf(it.device);
-      nm.append(el("span", "dtag " + dv.id, dv.etiket), el("span", "tm", it.start + "–" + it.end), el("span", "rn", it.name));
+      nm.append(el("span", "dtag " + dv.id, dv.etiket), el("span", "tm", timeText(it)), el("span", "rn", it.name));
+      if (it.takip) nm.append(el("span", "tk", it.takip));
       var ob = ovBadge(it); if (ob) nm.append(ob);
       if (isMine(it)) nm.append(el("span", "you", "SİZ"));
       var meta = (it.lam ? it.lam + " lam · " : "") + "Kaydedildi " + (stamp(it.created) || "—");
@@ -664,7 +860,8 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   function partsList(list) {
     var ul = el("ul", "plist");
     list.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (it) {
-      var li = el("li"); li.append(document.createTextNode(midDate(it.date) + " · "), el("b", null, it.start + "–" + it.end));
+      var li = el("li"); li.append(document.createTextNode(midDate(it.date) + " · "), el("b", null, timeText(it)));
+      if (it.takip) li.append(document.createTextNode(" · " + it.takip));
       ul.append(li);
     });
     return ul;
@@ -951,7 +1148,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       p.append(partsList(cancellable.length ? cancellable : parts));
       p.append(el("p", "hint", "Bu saatler başkalarına açılır. Kayıtlar silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
     } else {
-      p.append(el("p", "ptext", it.start + "–" + it.end + " arası " + it.name + " adına yapılan rezervasyon iptal edilecek ve bu saatler başkalarına açılacak. Kayıt silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
+      p.append(el("p", "ptext", (it.takip ? it.start + " " + it.takip + " seansındaki, " : timeText(it) + " arası ") + it.name + " adına yapılan rezervasyon iptal edilecek ve bu saatler başkalarına açılacak. Kayıt silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
     }
     var er = errBox(); p.append(er);
     var act = el("div", "actions"), back = btn("ghost", "Vazgeç"), ok = btn("danger", "Rezervasyonu iptal et");

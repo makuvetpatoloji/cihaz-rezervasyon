@@ -1,6 +1,6 @@
 // Network first: the page always loads the newest version when online; the cached copy opens it offline.
 // Calls to the Apps Script server are never cached.
-const CACHE = 'rezervasyon-v2';
+const CACHE = 'rezervasyon-v3';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
