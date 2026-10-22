@@ -164,6 +164,10 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 .btl .blk.mine{background:repeating-linear-gradient(135deg,var(--hema) 0 2px,var(--hema-soft) 2px 6px)}
 .btl .past{position:absolute;top:0;bottom:0;left:0;background:repeating-linear-gradient(135deg,var(--line) 0 2px,var(--track) 2px 6px)}
 .btl .sel{position:absolute;top:3px;bottom:3px;border-radius:6px;background:var(--hema);display:grid;place-items:center;color:var(--hema-ink);font:500 11px var(--f-mono);white-space:nowrap;overflow:hidden}
+.btl .sel.cap{top:1px;bottom:1px;background:transparent;border:2.5px solid var(--hema);box-shadow:inset 0 0 0 1px var(--surface)}
+.capinfo{margin:-6px 0 0;font-size:14px;color:var(--muted)}
+.capinfo b{color:var(--ink);font-family:var(--f-mono);font-weight:500;font-variant-numeric:tabular-nums}
+.cap-line{font-size:12.5px;font-variant-numeric:tabular-nums}
 .axis{position:relative;height:15px;font:500 10.5px var(--f-mono);color:var(--muted)}
 .axis span{position:absolute;top:0;transform:translateX(-50%)}
 .axis span:first-child{transform:none}
@@ -434,16 +438,49 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       .sort(function (a, b) { return dk(a.start) - dk(b.start); });
   }
   function lowBound(ds) { return ds === S.today ? Math.max(GB, Math.floor(curMin() / ADIM) * ADIM) : GB; }
-  function freeWins(ds, dev) {
+  // A device with "kapasite" is shared: overlapping bookings are fine while their slide total stays within it.
+  // Every other device is exclusive: one booking per time slot (capacity 1, each booking weighs 1).
+  function capOf(dev) { return Number(dev && dev.kapasite) || 0; }
+  function limitOf(dev) { return capOf(dev) || 1; }
+  function weightOf(dev, it) { return capOf(dev) ? (Number(it.lam) || 0) : 1; }
+  function loadAt(list, dev, t) { var y = 0; list.forEach(function (b) { if (dk(b.start) <= t && t < dk(b.end)) y += weightOf(dev, b); }); return y; }
+  function freeWins(ds, devId) {
     if (ds < S.today) return [];
-    var lo = lowBound(ds), cur = lo, wins = [];
-    activeFor(ds, dev).forEach(function (b) {
-      var s = dk(b.start), e = dk(b.end);
-      if (s > cur) wins.push([cur, Math.min(s, GE)]);
-      cur = Math.max(cur, e);
+    var dev = DEV[devId], lim = limitOf(dev), list = activeFor(ds, devId), wins = [], cur = null;
+    for (var t = lowBound(ds); t < GE; t += ADIM) {
+      var ok = loadAt(list, dev, t) < lim;
+      if (ok && cur === null) cur = t;
+      if (!ok && cur !== null) { wins.push([cur, t]); cur = null; }
+    }
+    if (cur !== null) wins.push([cur, GE]);
+    return wins;
+  }
+  function availFor(ds, devId, s, e) {
+    var dev = DEV[devId], list = activeFor(ds, devId), mx = 0;
+    for (var t = s; t < e; t += ADIM) mx = Math.max(mx, loadAt(list, dev, t));
+    return limitOf(dev) - mx;
+  }
+  function peakOf(ds, devId) { return limitOf(DEV[devId]) - availFor(ds, devId, GB, GE); }
+  // contiguous stretches of equal load: [start, end, load, includesMine]
+  function loadSegs(ds, devId) {
+    var dev = DEV[devId], list = activeFor(ds, devId), segs = [], cur = null;
+    for (var t = GB; t < GE; t += ADIM) {
+      var y = 0, mine = false;
+      list.forEach(function (b) { if (dk(b.start) <= t && t < dk(b.end)) { y += weightOf(dev, b); if (isMine(b)) mine = true; } });
+      if (cur && cur[2] === y && cur[3] === mine) cur[1] = t + ADIM;
+      else { if (cur && cur[2] > 0) segs.push(cur); cur = [t, t + ADIM, y, mine]; }
+    }
+    if (cur && cur[2] > 0) segs.push(cur);
+    return segs;
+  }
+  function drawLoad(box, ds, devId) {
+    var cap = capOf(DEV[devId]);
+    loadSegs(ds, devId).forEach(function (sg) {
+      var b = el("span", "blk" + (sg[3] ? " mine" : ""));
+      b.style.left = pct(sg[0]); b.style.width = "calc(" + pct(sg[1]) + " - " + pct(sg[0]) + ")";
+      b.style.top = (100 - Math.min(100, sg[2] / cap * 100)).toFixed(1) + "%";
+      box.append(b);
     });
-    if (cur < GE) wins.push([cur, GE]);
-    return wins.filter(function (w) { return w[1] - w[0] >= ADIM; });
   }
   function pct(m) { return ((m - GB) / (GE - GB) * 100).toFixed(3) + "%"; }
   function ovBadge(it) {
@@ -519,7 +556,8 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     box.append(top);
     if (!ready) { box.append(el("p", "muted", S.err ? "—" : "Yükleniyor…")); return box; }
     var list = activeFor(ds, dev.id);
-    list.forEach(function (it) {
+    if (capOf(dev)) drawLoad(tl, ds, dev.id);
+    else list.forEach(function (it) {
       var b = el("span", "blk" + (isMine(it) ? " mine" : "") + (it.overnight && it.pairDate > it.date ? " ovr" : ""));
       b.style.left = pct(dk(it.start)); b.style.width = "calc(" + pct(dk(it.end)) + " - " + pct(dk(it.start)) + ")";
       tl.append(b);
@@ -541,6 +579,10 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       box.setAttribute("aria-label", dev.ad + ": " + (past ? "kayıt yok" : "boş"));
     }
     if (!past && list.length && !wins.length) box.append(el("p", "muted", isToday ? "Bugün için boş saat kalmadı" : "Gün dolu"));
+    else if (capOf(dev) && list.length) {
+      var peak = peakOf(ds, dev.id);
+      box.append(el("p", "muted cap-line", "En yoğun saatte " + peak + " / " + capOf(dev) + " lam · " + (capOf(dev) - peak) + " lam boş"));
+    }
     return box;
   }
 
@@ -648,13 +690,15 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     box.replaceChildren();
     var lo = lowBound(ds);
     if (lo > GB) { var ps = el("span", "past"); ps.style.width = pct(lo); box.append(ps); }
-    activeFor(ds, devId).forEach(function (it) {
+    var shared = !!capOf(DEV[devId]);
+    if (shared) drawLoad(box, ds, devId);
+    else activeFor(ds, devId).forEach(function (it) {
       var bk = el("span", "blk" + (isMine(it) ? " mine" : ""));
       bk.style.left = pct(dk(it.start)); bk.style.width = "calc(" + pct(dk(it.end)) + " - " + pct(dk(it.start)) + ")";
       box.append(bk);
     });
     if (s != null && e > s) {
-      var se = el("span", "sel", e - s >= 180 ? label : "");
+      var se = el("span", "sel" + (shared ? " cap" : ""), !shared && e - s >= 180 ? label : "");
       se.style.left = pct(s); se.style.width = "calc(" + pct(e) + " - " + pct(s) + ")";
       box.append(se);
     }
@@ -664,7 +708,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     if (!dev || !dev.overnight || dow(sh.ds) === 5) return null;
     var last = freeWins(sh.ds, sh.dev).filter(function (w) { return w[1] === GE; })[0];
     var nd = nextWork(sh.ds);
-    if (!last) return { ok: false, nd: nd, why: "Bu gün " + CFG.bitis + "'e kadar boş bir aralık yok; overnight seçilemez." };
+    if (!last) return { ok: false, nd: nd, why: "Bu gün " + CFG.bitis + "'e kadar " + (capOf(dev) ? "kesintisiz boş kapasite" : "boş bir aralık") + " yok; overnight seçilemez." };
     var nw = freeWins(nd, sh.dev).filter(function (w) { return w[0] === GB; })[0];
     if (!nw) return { ok: false, nd: nd, why: "Ertesi gün (" + midDate(nd) + ") sabah " + CFG.basla + " dolu; overnight seçilemez." };
     return { ok: true, nd: nd, win: last, nwin: nw };
@@ -681,7 +725,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     B.tl = el("div", "btl"); B.tl.setAttribute("aria-hidden", "true");
     var lg = el("div", "legend");
     var a = el("span"); a.append(el("i", "l-sel"), document.createTextNode("Seçiminiz"));
-    var b = el("span"); b.append(el("i", "l-busy"), document.createTextNode("Dolu"));
+    var b = el("span"); b.append(el("i", "l-busy"), document.createTextNode(capOf(dev) ? "Doluluk (yükseklik = lam sayısı, en çok " + capOf(dev) + ")" : "Dolu"));
     lg.append(a, b);
     wrap.append(B.tl, axisEl(), lg);
     p.append(wrap);
@@ -730,10 +774,11 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 
     if (dev.lam) {
       var fl = el("div", "field narrow"), ll = el("label", null, "Lam sayısı"); ll.htmlFor = "lamInput";
-      B.lam = el("input"); B.lam.id = "lamInput"; B.lam.type = "number"; B.lam.min = "1"; B.lam.max = String(LAM_MAX); B.lam.step = "1";
+      B.lam = el("input"); B.lam.id = "lamInput"; B.lam.type = "number"; B.lam.min = "1"; B.lam.max = String(capOf(dev) || LAM_MAX); B.lam.step = "1";
       B.lam.setAttribute("inputmode", "numeric"); B.lam.placeholder = "Örn. 12";
       fl.append(ll, B.lam); p.append(fl);
       B.lam.addEventListener("input", function () { if (!B.err.hidden) showErr(B.err, ""); });
+      if (capOf(dev)) { B.capInfo = el("p", "capinfo"); p.append(B.capInfo); }
     }
 
     var fn = el("div", "field"), ln = el("label", null, "Ad Soyad"); ln.htmlFor = "nameInput";
@@ -809,6 +854,19 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
         fillSel(B.nEnd, GB + ADIM, ov.nwin[1], sh.nEnd);
       }
     }
+    if (B.capInfo) {
+      var av = selAvail(), cap = capOf(DEV[sh.dev]);
+      B.lam.max = String(Math.max(1, av));
+      B.capInfo.replaceChildren(
+        document.createTextNode(sh.on ? "Seçtiğiniz saatlerde (iki gün) boş kapasite: " : "Seçtiğiniz saatlerde boş kapasite: "),
+        el("b", null, av + " / " + cap + " lam"));
+    }
+  }
+  // free slide capacity over the whole selection (both nights' parts when overnight)
+  function selAvail() {
+    var sh = S.sheet;
+    if (sh.on) { var ov = ovState(sh); return Math.min(availFor(sh.ds, sh.dev, sh.start, GE), ov && ov.ok ? availFor(ov.nd, sh.dev, GB, sh.nEnd) : 0); }
+    return availFor(sh.ds, sh.dev, sh.start, sh.end);
   }
   function submitBook() {
     if (S.busy || !S.sheet || S.sheet.kind !== "book") return;
@@ -817,7 +875,12 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     if (dev.lam) {
       var lv = String(B.lam.value || "").trim();
       lam = Number(lv);
-      if (!lv || !(lam >= 1 && lam <= LAM_MAX && Math.floor(lam) === lam)) { showErr(B.err, "Lam sayısını 1 ile " + LAM_MAX + " arasında bir tam sayı olarak yazın."); try { B.lam.focus(); } catch (e) {} return; }
+      var lmax = capOf(dev) || LAM_MAX;
+      if (!lv || !(lam >= 1 && lam <= lmax && Math.floor(lam) === lam)) { showErr(B.err, "Lam sayısını 1 ile " + lmax + " arasında bir tam sayı olarak yazın."); try { B.lam.focus(); } catch (e) {} return; }
+      if (capOf(dev)) {
+        var av = selAvail();
+        if (lam > av) { showErr(B.err, av > 0 ? "Seçtiğiniz saatlerde en fazla " + av + " lam boş. Lam sayısını azaltın ya da başka bir saat seçin." : "Seçtiğiniz saatlerde boş kapasite yok. Başka bir saat seçin."); try { B.lam.focus(); } catch (e) {} return; }
+      }
     }
     var raw = B.name.value.replace(/\s+/g, " ").trim();
     if (!raw) return showErr(B.err, "Adınızı ve soyadınızı yazın.");
