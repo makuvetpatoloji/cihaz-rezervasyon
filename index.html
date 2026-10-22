@@ -947,7 +947,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     box.replaceChildren();
     SECTIONS.forEach(function (sc) {
       var card = el("button", "seccard"); card.type = "button";
-      var img = el("img"); img.src = IMG_BASE + sc.img; img.alt = ""; img.width = 88; img.height = 88; img.loading = "lazy";
+      var img = el("img"); img.src = IMG_BASE + sc.img; img.alt = ""; img.width = 88; img.height = 88; img.decoding = "async";
       var tx = el("span", "sc-text");
       tx.append(el("b", null, sc.ad), el("span", "sc-sub", sc.alt));
       if (thisWeek) {
