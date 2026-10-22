@@ -25,6 +25,7 @@
   --eosin:#A8335A; --eosin-soft:#F7E2EA;
   --wax:#EADDBB; --wax-2:#D2BE8E;
   --dab:#7A4A1E; --dab-soft:#F3E7DA;
+  --free:#4BAA66; --past:#C3C8D4;
   --ok:#1F7A4D; --danger:#B42318; --danger-soft:#FCE8E5;
   --scrim:rgba(14,16,38,.48); --shadow:rgba(20,24,60,.18);
   --f-display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
@@ -39,6 +40,7 @@
     --eosin:#F39BBB; --eosin-soft:#3A1F37;
     --wax:#4B4230; --wax-2:#66583A;
     --dab:#E2B48A; --dab-soft:#3A2C22;
+    --free:#3B8F55; --past:#3A3F5E;
     --ok:#5AD39A; --danger:#FF8F80; --danger-soft:#3E1F22;
     --scrim:rgba(0,0,0,.6); --shadow:rgba(0,0,0,.5);
     color-scheme:dark;
@@ -179,6 +181,15 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 .capinfo{margin:-6px 0 0;font-size:14px;color:var(--muted)}
 .capinfo b{color:var(--ink);font-family:var(--f-mono);font-weight:500;font-variant-numeric:tabular-nums}
 .cap-line{font-size:12.5px;font-variant-numeric:tabular-nums}
+/* time bar: green = free, each person's booking in their own colour, white lines = hour marks; no text */
+.tl,.btl{background:var(--free)}
+.tl.wait{background:var(--track)}
+.tl.full{flex:none;width:100%;height:16px;border-radius:5px}
+.seg{position:absolute}
+.tl .tick,.btl .tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.6)}
+.tl .past,.btl .past{position:absolute;top:0;bottom:0;left:0;background:var(--past);opacity:.9}
+.btl .sel{top:0;bottom:0;border-radius:6px;background:transparent;border:3px solid var(--ink);box-shadow:inset 0 0 0 1.5px var(--surface);display:block}
+.dot{flex:none;width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 1.5px var(--surface)}
 .axis{position:relative;height:15px;font:500 10.5px var(--f-mono);color:var(--muted)}
 .axis span{position:absolute;top:0;transform:translateX(-50%)}
 .axis span:first-child{transform:none}
@@ -311,7 +322,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
           { id: "kisa-fs", ad: "Formaldehitsiz kısa takip", grup: "Kısa takip", secenek: "Formaldehitsiz", saat: "09:00" },
           { id: "dekalsifiye", ad: "Dekalsifiye sonrası takip", grup: "Dekalsifiye sonrası takip", saat: "17:00" }
         ] }
-    ], basla: "08:00", bitis: "18:00", adim: 30, lamEnFazla: 200
+    ], basla: "09:00", bitis: "17:00", adim: 30, lamEnFazla: 200
   };
   var CACHED = loadJSON(CFG_KEY, null);
   var CFG = window.AYAR || (CACHED && Array.isArray(CACHED.cihazlar) && CACHED.cihazlar.length ? CACHED : FALLBACK);
@@ -492,6 +503,55 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     if (cur && cur[2] > 0) segs.push(cur);
     return segs;
   }
+  // per-person colours: stable for a name, and never shared by two people on the same bar
+  var PALETTE = ["#3A3F9F", "#C2416B", "#E08A2E", "#1F7FB4", "#7B4FC9", "#8C5A2B", "#B23AA0", "#4A5A73", "#D9542B", "#22406E", "#E06A8E", "#B8902A"];
+  function normName(n) { return String(n || "").toLocaleLowerCase("tr-TR").replace(/\s+/g, " ").trim(); }
+  function hashStr(t) { var h = 0; for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; return h; }
+  function colorMap(list) {
+    var used = {}, map = {};
+    list.slice().sort(function (a, b) { return (a.created || "") < (b.created || "") ? -1 : (a.created || "") > (b.created || "") ? 1 : 0; }).forEach(function (it) {
+      var k = normName(it.name); if (map[k]) return;
+      var i = hashStr(k) % PALETTE.length, n = 0;
+      while (used[i] && n < PALETTE.length) { i = (i + 1) % PALETTE.length; n++; }
+      used[i] = 1; map[k] = PALETTE[i];
+    });
+    return map;
+  }
+  function colorOf(map, it) { return map[normName(it.name)] || PALETTE[0]; }
+  function span(sg, s, e) { sg.style.left = pct(s); sg.style.width = "calc(" + pct(e) + " - " + pct(s) + " + 0.5px)"; }
+  // green bar of the day; bookings in their person's colour (shared devices stack each person's slides
+  // within the slot, so the green left above is the free capacity); white hour marks; nothing written on it
+  function drawBar(box, ds, devId, opt) {
+    opt = opt || {};
+    box.replaceChildren(); box.classList.remove("wait");
+    var dev = DEV[devId], list = activeFor(ds, devId), cmap = colorMap(list), cap = capOf(dev);
+    if (cap) {
+      for (var t = GB; t < GE; t += ADIM) {
+        var bottom = 0;
+        list.forEach(function (b) {
+          if (!(dk(b.start) <= t && t < dk(b.end))) return;
+          var h = Math.min(100 - bottom, (Number(b.lam) || 0) / cap * 100);
+          if (h <= 0) return;
+          var sg = el("span", "seg"); span(sg, t, t + ADIM);
+          sg.style.bottom = bottom.toFixed(2) + "%"; sg.style.height = h.toFixed(2) + "%"; sg.style.background = colorOf(cmap, b);
+          box.append(sg); bottom += h;
+        });
+      }
+    } else {
+      list.forEach(function (b) {
+        var s = Math.max(GB, dk(b.start)), e = Math.min(GE, dk(b.end));
+        if (e <= s) return;
+        var sg = el("span", "seg"); span(sg, s, e);
+        sg.style.top = "0"; sg.style.bottom = "0"; sg.style.background = colorOf(cmap, b);
+        box.append(sg);
+      });
+    }
+    if (ds === S.today) { var lo = Math.min(lowBound(ds), GE); if (lo > GB) { var ps = el("span", "past"); ps.style.width = pct(lo); box.append(ps); } }
+    for (var hh = Math.ceil(GB / 60) * 60; hh < GE; hh += 60) if (hh > GB) { var tk = el("span", "tick"); tk.style.left = pct(hh); box.append(tk); }
+    if (opt.now && ds === S.today) { var c = curMin(); if (c > GB && c < GE) { var nw = el("span", "now"); nw.style.left = pct(c); box.append(nw); } }
+    if (opt.sel && opt.sel[0] != null && opt.sel[1] > opt.sel[0]) { var se = el("span", "sel"); se.style.left = pct(opt.sel[0]); se.style.width = "calc(" + pct(opt.sel[1]) + " - " + pct(opt.sel[0]) + ")"; box.append(se); }
+    return cmap;
+  }
   function drawLoad(box, ds, devId) {
     var cap = capOf(DEV[devId]);
     loadSegs(ds, devId).forEach(function (sg) {
@@ -548,9 +608,10 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     row.append(dc, devs);
     return row;
   }
-  function bookingLine(it, past) {
+  function bookingLine(it, past, color) {
     var mine = isMine(it);
     var li = el("li", "bk " + (mine ? "mine" : "taken"));
+    if (color) { var dot = el("span", "dot"); dot.style.background = color; dot.setAttribute("aria-hidden", "true"); li.append(dot); }
     li.append(el("span", "tm", timeText(it)), el("span", "nm", it.name));
     if (it.takip) li.append(el("span", "tk", it.takip));
     if (it.lam) li.append(el("span", "lam", it.lam + " lam"));
@@ -572,19 +633,12 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     var box = el("div", "dev");
     var top = el("div", "dev-top");
     var tag = el("span", "dtag " + dev.id, dev.etiket); tag.title = dev.ad;
-    var tl = el("div", "tl"); tl.setAttribute("aria-hidden", "true");
-    for (var h = Math.ceil(GB / 60) * 60; h < GE; h += 60) { if (h > GB) { var t = el("span", "tick"); t.style.left = pct(h); tl.append(t); } }
-    top.append(tag, tl);
-    box.append(top);
+    var tl = el("div", "tl full wait"); tl.setAttribute("aria-hidden", "true");
+    top.append(tag, el("span", "tl-sp"));
+    box.append(top, tl);
     if (!ready) { box.append(el("p", "muted", S.err ? "—" : "Yükleniyor…")); return box; }
     var list = activeFor(ds, dev.id);
-    if (capOf(dev)) drawLoad(tl, ds, dev.id);
-    else list.forEach(function (it) {
-      var b = el("span", "blk" + (isMine(it) ? " mine" : "") + (it.overnight && it.pairDate > it.date ? " ovr" : ""));
-      b.style.left = pct(dk(it.start)); b.style.width = "calc(" + pct(dk(it.end)) + " - " + pct(dk(it.start)) + ")";
-      tl.append(b);
-    });
-    if (isToday) { var c = curMin(); if (c > GB && c < GE) { var nw = el("span", "now"); nw.style.left = pct(c); tl.append(nw); } }
+    var cmap = drawBar(tl, ds, dev.id, { now: true });
     var wins = freeWins(ds, dev.id);
     if (!past && wins.length) {
       var add = el("button", "add"); add.type = "button";
@@ -595,7 +649,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     }
     if (list.length) {
       var ul = el("ul", "bks");
-      list.forEach(function (it) { ul.append(bookingLine(it, past)); });
+      list.forEach(function (it) { ul.append(bookingLine(it, past, colorOf(cmap, it))); });
       box.append(ul);
     } else {
       box.setAttribute("aria-label", dev.ad + ": " + (past ? "kayıt yok" : "boş"));
@@ -883,23 +937,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     if ((GE - GB) % stepH) { var s2 = el("span", null, hm(GE).slice(0, 2)); s2.style.left = "100%"; axis.append(s2); }
     return axis;
   }
-  function drawTl(box, ds, devId, s, e, label) {
-    box.replaceChildren();
-    var lo = lowBound(ds);
-    if (lo > GB) { var ps = el("span", "past"); ps.style.width = pct(lo); box.append(ps); }
-    var shared = !!capOf(DEV[devId]);
-    if (shared) drawLoad(box, ds, devId);
-    else activeFor(ds, devId).forEach(function (it) {
-      var bk = el("span", "blk" + (isMine(it) ? " mine" : ""));
-      bk.style.left = pct(dk(it.start)); bk.style.width = "calc(" + pct(dk(it.end)) + " - " + pct(dk(it.start)) + ")";
-      box.append(bk);
-    });
-    if (s != null && e > s) {
-      var se = el("span", "sel" + (shared ? " cap" : ""), !shared && e - s >= 180 ? label : "");
-      se.style.left = pct(s); se.style.width = "calc(" + pct(e) + " - " + pct(s) + ")";
-      box.append(se);
-    }
-  }
+  function drawTl(box, ds, devId, s, e) { drawBar(box, ds, devId, { sel: [s, e] }); }
   function ovState(sh) {
     var dev = DEV[sh.dev];
     if (!dev || !dev.overnight || dow(sh.ds) === 5) return null;
@@ -920,11 +958,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     head(p, dev.ad, longDate(sh.ds));
     var wrap = el("div", "btl-wrap");
     B.tl = el("div", "btl"); B.tl.setAttribute("aria-hidden", "true");
-    var lg = el("div", "legend");
-    var a = el("span"); a.append(el("i", "l-sel"), document.createTextNode("Seçiminiz"));
-    var b = el("span"); b.append(el("i", "l-busy"), document.createTextNode(capOf(dev) ? "Doluluk (yükseklik = lam sayısı, en çok " + capOf(dev) + ")" : "Dolu"));
-    lg.append(a, b);
-    wrap.append(B.tl, axisEl(), lg);
+    wrap.append(B.tl);
     p.append(wrap);
 
     var ovAllowed = dev.overnight && dow(sh.ds) !== 5;
@@ -955,7 +989,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       B.nd = el("div", "nextday");
       B.ndDate = el("p", "nd-date");
       B.ntl = el("div", "btl"); B.ntl.setAttribute("aria-hidden", "true");
-      var nwrap = el("div", "btl-wrap"); nwrap.append(B.ntl, axisEl());
+      var nwrap = el("div", "btl-wrap"); nwrap.append(B.ntl);
       var ntimes = el("div", "times");
       var fs = el("div", "field"), lf = el("label", null, "Başlangıç"); lf.htmlFor = "selNStart";
       var ns = el("select"); ns.id = "selNStart"; ns.disabled = true;
