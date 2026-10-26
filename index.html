@@ -108,6 +108,9 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 .dtag.ototeknikon{background:var(--eosin-soft);border-color:var(--eosin);color:var(--eosin)}
 .tl-sp{flex:1}
 .tk{font-size:12px;font-weight:500;padding:1px 7px;border-radius:5px;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.fx{font-size:12px;font-weight:700;padding:1px 7px;border-radius:5px;letter-spacing:.01em}
+.fx.on{background:var(--hema-soft);border:1px solid var(--hema);color:var(--hema)}
+.fx.off{background:transparent;border:1px dashed var(--muted);color:var(--ink)}
 .slotbox{display:grid;gap:6px;padding:10px 12px;border-radius:12px;background:var(--bg-2)}
 .slotrow{display:flex;gap:6px 10px;align-items:baseline;flex-wrap:wrap;font-size:14px}
 .slotrow .st{color:var(--muted)}
@@ -667,7 +670,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     var li = el("li", "bk " + (mine ? "mine" : "taken"));
     if (color) { var dot = el("span", "dot"); dot.style.background = color; dot.setAttribute("aria-hidden", "true"); li.append(dot); }
     li.append(el("span", "tm", timeText(it)), el("span", "nm", it.name));
-    if (it.takip) li.append(el("span", "tk", it.takip));
+    takipChips(li, it);
     if (it.lam) li.append(el("span", "lam", it.lam + " lam"));
     var ob = ovBadge(it); if (ob) li.append(ob);
     if (mine) {
@@ -719,6 +722,21 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
 
   // ---------- session devices (Ototeknikon): fixed run times, same protocol may share a run ----------
   function isSeans(dev) { return !!dev && dev.tur === "seans"; }
+  // the sheet stores the protocol name (e.g. "Günlük takip"); split it back into protocol + formaldehyde option
+  function takipInfo(devId, name) {
+    var dev = devOf(devId), t = ((dev && dev.takipler) || []).filter(function (x) { return x.ad === name; })[0];
+    if (t) return { grup: t.grup || t.ad, sec: t.secenek || "" };
+    var m = /^formaldehitsiz\s+/i.exec(name || "");
+    return m ? { grup: upFirst(name.slice(m[0].length)), sec: "Formaldehitsiz" } : { grup: name || "", sec: "" };
+  }
+  function upFirst(s) { return s ? s.charAt(0).toLocaleUpperCase("tr") + s.slice(1) : s; }
+  function takipText(devId, name) { var i = takipInfo(devId, name); return i.sec ? i.grup + " · " + i.sec : i.grup; }
+  function takipChips(parent, it) {
+    if (!it.takip) return;
+    var i = takipInfo(it.device, it.takip);
+    parent.append(el("span", "tk", i.grup));
+    if (i.sec) parent.append(el("span", "fx " + (/siz$/i.test(i.sec) ? "off" : "on"), i.sec));
+  }
   function seansTimes(dev) {
     var seen = {}, out = [];
     (dev.takipler || []).forEach(function (t) { if (!seen[t.saat]) { seen[t.saat] = 1; out.push(t.saat); } });
@@ -731,7 +749,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
   function takipBlocked(ds, dev, t) {
     var si = slotInfo(ds, dev.id, t.saat);
     if (si.passed) return "Bugünün " + t.saat + " seansının saati geçti.";
-    if (si.takip && si.takip !== t.ad) return t.saat + " seansına " + si.takip + " alınmış; bu seansa yalnızca aynı takip türüyle katılabilirsiniz.";
+    if (si.takip && si.takip !== t.ad) return t.saat + " seansına " + takipText(dev.id, si.takip) + " alınmış; bu seansa yalnızca aynı takip türüyle katılabilirsiniz.";
     return "";
   }
   function seansBlock(ds, dev, past, ready) {
@@ -810,7 +828,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     seansTimes(dev).forEach(function (saat) {
       var si = slotInfo(sh.ds, dev.id, saat), row = el("div", "slotrow");
       row.append(el("span", "tm", saat));
-      if (si.list.length) row.append(el("b", null, si.takip), el("span", "st", si.list.length + " kişi: " + si.list.map(function (x) { return x.name; }).join(", ")));
+      if (si.list.length) row.append(el("b", null, takipText(dev.id, si.takip)), el("span", "st", si.list.length + " kişi: " + si.list.map(function (x) { return x.name; }).join(", ")));
       else row.append(el("span", "st", si.passed ? "saati geçti" : "boş"));
       Q.slots.append(row);
     });
@@ -849,7 +867,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     else {
       var why2 = takipBlocked(sh.ds, dev, t), si = slotInfo(sh.ds, dev.id, t.saat);
       if (why2) { Q.result.className = "warnline"; Q.result.textContent = why2; }
-      else { Q.result.className = "okline"; Q.result.replaceChildren(el("b", null, t.saat + " · " + t.ad), document.createTextNode(si.list.length ? " — bu seansa " + si.list.length + " kişi daha katıldı." : " — seansı siz başlatacaksınız.")); }
+      else { Q.result.className = "okline"; Q.result.replaceChildren(el("b", null, t.saat + " · " + (t.grup || t.ad) + (t.secenek ? " · " + t.secenek : "")), document.createTextNode(si.list.length ? " — bu seansa " + si.list.length + " kişi daha katıldı." : " — seansı siz başlatacaksınız.")); }
     }
     Q.onay.checked = sh.onay; Q.onayBox.classList.toggle("on", sh.onay);
   }
@@ -924,7 +942,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       var rm = el("div", "rmain"), nm = el("div", "rname");
       var dv = devOf(it.device);
       nm.append(el("span", "dtag " + dv.id, dv.etiket), el("span", "tm", timeText(it)), el("span", "rn", it.name));
-      if (it.takip) nm.append(el("span", "tk", it.takip));
+      takipChips(nm, it);
       var ob = ovBadge(it); if (ob) nm.append(ob);
       if (isMine(it)) nm.append(el("span", "you", "SİZ"));
       var meta = (it.lam ? it.lam + " lam · " : "") + "Kaydedildi " + (stamp(it.created) || "—");
@@ -990,7 +1008,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     var ul = el("ul", "plist");
     list.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (it) {
       var li = el("li"); li.append(document.createTextNode(midDate(it.date) + " · "), el("b", null, timeText(it)));
-      if (it.takip) li.append(document.createTextNode(" · " + it.takip));
+      if (it.takip) li.append(document.createTextNode(" · " + takipText(it.device, it.takip)));
       ul.append(li);
     });
     return ul;
@@ -1257,7 +1275,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       p.append(partsList(cancellable.length ? cancellable : parts));
       p.append(el("p", "hint", "Bu saatler başkalarına açılır. Kayıtlar silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
     } else {
-      p.append(el("p", "ptext", (it.takip ? it.start + " " + it.takip + " seansındaki, " : timeText(it) + " arası ") + it.name + " adına yapılan rezervasyon iptal edilecek ve bu saatler başkalarına açılacak. Kayıt silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
+      p.append(el("p", "ptext", (it.takip ? it.start + " " + takipText(it.device, it.takip) + " seansındaki, " : timeText(it) + " arası ") + it.name + " adına yapılan rezervasyon iptal edilecek ve bu saatler başkalarına açılacak. Kayıt silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
     }
     var er = errBox(); p.append(er);
     var act = el("div", "actions"), back = btn("ghost", "Vazgeç"), ok = btn("danger", "Rezervasyonu iptal et");
