@@ -675,8 +675,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     var ob = ovBadge(it); if (ob) li.append(ob);
     if (mine) {
       li.append(el("span", "you", "SİZ"));
-      var lastDate = it.pairDate && it.pairDate > it.date ? it.pairDate : it.date;
-      if (lastDate >= S.today && !(past && !it.overnight)) {
+      if (canCancel(it)) {
         var cb = el("button", "cancel", "İptal et"); cb.type = "button";
         cb.setAttribute("aria-label", timeText(it) + " rezervasyonunu iptal et");
         cb.addEventListener("click", function () { openCancel(it); });
@@ -949,7 +948,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
       if (it.status === "iptal" && it.cancelled) meta += " · İptal " + stamp(it.cancelled);
       rm.append(nm, el("div", "rmeta", meta));
       var side = el("div", "rside"); side.append(el("span", "pill " + st, lbl));
-      if (isMine(it) && it.status === "aktif" && it.date >= S.today) {
+      if (canCancel(it)) {
         var b = el("button", "cancel", "İptal et"); b.type = "button";
         b.addEventListener("click", function () { openCancel(it); });
         side.append(b);
@@ -1265,14 +1264,28 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     }
     return out;
   }
-  function openCancel(it) { S.sheet = { kind: "cancel", it: it }; openSheet(function (p) { buildCancel(p, it, S.mine[it.id]); }); }
+  // a booking can be cancelled only before its start time; for overnight, before the first night starts
+  function hasStarted(x) {
+    if (!x || !x.date) return false;
+    if (x.date !== S.today) return x.date < S.today;
+    var m = dk(x.start || "");
+    return isNaN(m) ? false : m <= curMin();
+  }
+  function canCancel(it) {
+    if (!it || !isMine(it) || it.status !== "aktif") return false;
+    return !withPair(it).some(hasStarted);
+  }
+  var STARTED_MSG = "Bu rezervasyonun saati geldiği ya da geçtiği için artık iptal edilemez.";
+  function openCancel(it) {
+    if (!canCancel(it)) { toast(STARTED_MSG); render(); return; }
+    S.sheet = { kind: "cancel", it: it }; openSheet(function (p) { buildCancel(p, it, S.mine[it.id]); });
+  }
   function buildCancel(p, it, code) {
     var dev = devOf(it.device), parts = withPair(it);
-    var cancellable = parts.filter(function (x) { return x.date >= S.today; });
     head(p, dev.ad, it.overnight ? "Overnight rezervasyonu iptal et" : longDate(it.date));
     if (it.overnight) {
-      p.append(el("p", "ptext", it.name + " adına yapılan overnight rezervasyonun " + (cancellable.length > 1 ? "iki günü birlikte" : "kalan kısmı") + " iptal edilecek:"));
-      p.append(partsList(cancellable.length ? cancellable : parts));
+      p.append(el("p", "ptext", it.name + " adına yapılan overnight rezervasyonun iki günü birlikte iptal edilecek:"));
+      p.append(partsList(parts));
       p.append(el("p", "hint", "Bu saatler başkalarına açılır. Kayıtlar silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
     } else {
       p.append(el("p", "ptext", (it.takip ? it.start + " " + takipText(it.device, it.takip) + " seansındaki, " : timeText(it) + " arası ") + it.name + " adına yapılan rezervasyon iptal edilecek ve bu saatler başkalarına açılacak. Kayıt silinmez; Kayıtlar sekmesinde “İptal edildi” olarak kalır."));
@@ -1282,6 +1295,7 @@ h1{margin:0;font:800 26px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:b
     back.addEventListener("click", closeSheet);
     ok.addEventListener("click", function () {
       if (S.busy) return;
+      if (!canCancel(it)) { showErr(er, STARTED_MSG); ok.disabled = true; return; }
       S.busy = true; ok.disabled = true; ok.textContent = "İptal ediliyor…"; showErr(er, "");
       api("iptalEt", it.id, code).then(function (res) {
         S.busy = false; ok.disabled = false; ok.textContent = "Rezervasyonu iptal et";
